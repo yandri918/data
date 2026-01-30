@@ -16,7 +16,27 @@ def load_stock_data():
         else:
             # Fallback to parent directory
             parent_path = os.path.join(os.path.dirname(__file__), '..', '..', 'stock_price.csv')
-            df = pd.read_csv(parent_path)
+            if os.path.exists(parent_path):
+                df = pd.read_csv(parent_path)
+            else:
+                # Show helpful error message
+                st.error("📁 **Data File Not Found**")
+                st.warning("""
+                The `stock_price.csv` file is not included in this repository due to GitHub's file size limits.
+                
+                **To use this app:**
+                1. Download the stock price dataset
+                2. Upload it to a cloud storage (Google Drive, Dropbox, etc.)
+                3. Update this function to load from URL
+                
+                **Example:**
+                ```python
+                df = pd.read_csv('https://your-storage-url/stock_price.csv')
+                ```
+                
+                See `data/README.md` for more information.
+                """)
+                return None
         
         # Convert date column to datetime
         df['date'] = pd.to_datetime(df['date'])
@@ -26,7 +46,8 @@ def load_stock_data():
         
         return df
     except Exception as e:
-        st.error(f"Error loading stock data: {e}")
+        st.error(f"❌ Error loading stock data: {e}")
+        st.info("💡 Check that the CSV file exists and is properly formatted.")
         return None
 
 @st.cache_data
@@ -46,11 +67,38 @@ def load_credit_card_data(sample_size=50000):
         else:
             # Fallback to parent directory
             parent_path = os.path.join(os.path.dirname(__file__), '..', '..', 'creditcard.csv')
-            df = pd.read_csv(parent_path, nrows=sample_size)
+            if os.path.exists(parent_path):
+                df = pd.read_csv(parent_path, nrows=sample_size)
+            else:
+                # Show helpful error message
+                st.error("📁 **Data File Not Found**")
+                st.warning("""
+                The `creditcard.csv` file is not included in this repository due to GitHub's 100 MB file size limit.
+                This file is 143.84 MB and cannot be stored directly in GitHub.
+                
+                **Options to use this app:**
+                
+                **Option 1: Use Public Dataset**
+                Download from Kaggle: [Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
+                
+                **Option 2: Cloud Storage**
+                1. Upload the CSV to Google Drive, Dropbox, or AWS S3
+                2. Get a public URL
+                3. Update this function to load from URL
+                
+                **Example:**
+                ```python
+                df = pd.read_csv('https://your-storage-url/creditcard.csv', nrows=sample_size)
+                ```
+                
+                See `data/README.md` for detailed instructions.
+                """)
+                return None
         
         return df
     except Exception as e:
-        st.error(f"Error loading credit card data: {e}")
+        st.error(f"❌ Error loading credit card data: {e}")
+        st.info("💡 Check that the CSV file exists and has the correct format.")
         return None
 
 def get_data_info(df):
