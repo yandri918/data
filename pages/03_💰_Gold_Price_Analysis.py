@@ -63,35 +63,125 @@ st.markdown("**Analisis harga emas real-time dari berbagai mata uang**")
 # Fetch gold price data
 @st.cache_data(ttl=300)  # Cache for 5 minutes
 def fetch_gold_price():
-    """Fetch gold price from API"""
+    """Fetch gold price from multiple API sources with fallback"""
+    
+    # Try primary API (metals-api.com - free tier)
     try:
-        response = requests.get("https://gold-price.vercel.app/api", timeout=10)
-        response.raise_for_status()
-        return response.json(), True
+        st.info("🔄 Fetching live gold prices from Metals API...")
+        # Using metals-api.com free tier
+        response = requests.get(
+            "https://api.metals.dev/v1/latest?api_key=DEMO&currency=USD&unit=toz",
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Parse metals-api response
+            if 'metals' in data and 'gold' in data['metals']:
+                gold_price_usd = data['metals']['gold']
+                
+                # Get USD/IDR exchange rate (approximate)
+                usd_to_idr = 15712  # Approximate rate
+                
+                # Calculate prices
+                oz_usd = gold_price_usd
+                gr_usd = gold_price_usd / 31.1035  # 1 oz = 31.1035 grams
+                kg_usd = gr_usd * 1000
+                
+                oz_idr = oz_usd * usd_to_idr
+                gr_idr = gr_usd * usd_to_idr
+                kg_idr = kg_usd * usd_to_idr
+                
+                return {
+                    "usd": {
+                        "oz": f"{oz_usd:,.2f}",
+                        "gr": f"{gr_usd:,.2f}",
+                        "kg": f"{kg_usd:,.2f}"
+                    },
+                    "kurs_bi": {
+                        "oz": f"{usd_to_idr:,.2f}",
+                        "gr": f"{usd_to_idr:,.2f}",
+                        "kg": f"{usd_to_idr:,.2f}"
+                    },
+                    "idr": {
+                        "oz": f"{oz_idr:,.0f}",
+                        "gr": f"{gr_idr:,.0f}",
+                        "kg": f"{kg_idr:,.0f}"
+                    },
+                    "update_gold_price": datetime.now().strftime("%d %B %Y %H:%M"),
+                    "update_kurs_bi": datetime.now().strftime("%d %B %Y %H:%M"),
+                    "source": "https://metals.dev (Live Data)"
+                }, True
     except Exception as e:
-        st.warning(f"⚠️ API temporarily unavailable: {str(e)[:100]}")
-        st.info("📊 Displaying sample data for demonstration purposes")
-        # Return sample data
-        return {
-            "usd": {
-                "oz": "2,171.35 (+13.27)",
-                "gr": "69.81",
-                "kg": "69,810.52"
-            },
-            "kurs_bi": {
-                "oz": "15,712.00",
-                "gr": "505.00",
-                "kg": "505,000.00"
-            },
-            "idr": {
-                "oz": "34,116,251",
-                "gr": "1,096,863 (+6,703.37)",
-                "kg": "1,096,862,947"
-            },
-            "update_gold_price": "Sample Data - API Unavailable",
-            "update_kurs_bi": "Sample Data - API Unavailable",
-            "source": "https://harga-emas.org"
-        }, False
+        st.warning(f"⚠️ Primary API unavailable: {str(e)[:80]}")
+    
+    # Try alternative API (goldapi.io - free tier)
+    try:
+        st.info("🔄 Trying alternative source (GoldAPI)...")
+        response = requests.get(
+            "https://www.goldapi.io/api/XAU/USD",
+            headers={"x-access-token": "goldapi-demo"},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            
+            if 'price' in data:
+                oz_usd = data['price']
+                gr_usd = oz_usd / 31.1035
+                kg_usd = gr_usd * 1000
+                
+                usd_to_idr = 15712
+                
+                oz_idr = oz_usd * usd_to_idr
+                gr_idr = gr_usd * usd_to_idr
+                kg_idr = kg_usd * usd_to_idr
+                
+                return {
+                    "usd": {
+                        "oz": f"{oz_usd:,.2f}",
+                        "gr": f"{gr_usd:,.2f}",
+                        "kg": f"{kg_usd:,.2f}"
+                    },
+                    "kurs_bi": {
+                        "oz": f"{usd_to_idr:,.2f}",
+                        "gr": f"{usd_to_idr:,.2f}",
+                        "kg": f"{usd_to_idr:,.2f}"
+                    },
+                    "idr": {
+                        "oz": f"{oz_idr:,.0f}",
+                        "gr": f"{gr_idr:,.0f}",
+                        "kg": f"{kg_idr:,.0f}"
+                    },
+                    "update_gold_price": datetime.now().strftime("%d %B %Y %H:%M"),
+                    "update_kurs_bi": datetime.now().strftime("%d %B %Y %H:%M"),
+                    "source": "https://goldapi.io (Live Data)"
+                }, True
+    except Exception as e:
+        st.warning(f"⚠️ Alternative API unavailable: {str(e)[:80]}")
+    
+    # Fallback to sample data
+    st.info("📊 All APIs unavailable - Displaying sample data for demonstration")
+    return {
+        "usd": {
+            "oz": "2,171.35",
+            "gr": "69.81",
+            "kg": "69,810.52"
+        },
+        "kurs_bi": {
+            "oz": "15,712.00",
+            "gr": "505.00",
+            "kg": "505,000.00"
+        },
+        "idr": {
+            "oz": "34,116,251",
+            "gr": "1,096,863",
+            "kg": "1,096,862,947"
+        },
+        "update_gold_price": "Sample Data - All APIs Unavailable",
+        "update_kurs_bi": "Sample Data - All APIs Unavailable",
+        "source": "Sample Data (APIs Unavailable)"
+    }, False
 
 # Load data
 with st.spinner("Fetching latest gold prices..."):
