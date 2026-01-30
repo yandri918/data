@@ -19,24 +19,40 @@ def load_stock_data():
             if os.path.exists(parent_path):
                 df = pd.read_csv(parent_path)
             else:
-                # Show helpful error message
-                st.error("📁 **Data File Not Found**")
-                st.warning("""
-                The `stock_price.csv` file is not included in this repository due to GitHub's file size limits.
+                # Generate sample data for demonstration
+                st.info("📊 **Using Sample Stock Data**")
+                st.caption("The actual CSV file is not included in the repository. Displaying generated sample data for demonstration purposes.")
                 
-                **To use this app:**
-                1. Download the stock price dataset
-                2. Upload it to a cloud storage (Google Drive, Dropbox, etc.)
-                3. Update this function to load from URL
+                import numpy as np
+                from datetime import datetime, timedelta
                 
-                **Example:**
-                ```python
-                df = pd.read_csv('https://your-storage-url/stock_price.csv')
-                ```
+                # Generate 500 days of sample stock data
+                num_days = 500
+                start_date = datetime(2023, 1, 1)
+                dates = [start_date + timedelta(days=i) for i in range(num_days)]
                 
-                See `data/README.md` for more information.
-                """)
-                return None
+                # Generate realistic stock prices with trend and volatility
+                np.random.seed(42)
+                base_price = 100
+                trend = np.linspace(0, 20, num_days)  # Upward trend
+                volatility = np.random.randn(num_days) * 2
+                prices = base_price + trend + np.cumsum(volatility)
+                
+                # Generate OHLC data
+                df = pd.DataFrame({
+                    'date': dates,
+                    'symbol': ['SAMPLE'] * num_days,
+                    'mic': ['XNAS'] * num_days,
+                    'open_value': prices + np.random.randn(num_days) * 0.5,
+                    'high_value': prices + abs(np.random.randn(num_days)) * 1.5,
+                    'low_value': prices - abs(np.random.randn(num_days)) * 1.5,
+                    'last_value': prices,
+                    'turnover': np.random.randint(1000000, 10000000, num_days)
+                })
+                
+                # Ensure high >= open, close, low and low <= open, close, high
+                df['high_value'] = df[['open_value', 'high_value', 'last_value']].max(axis=1)
+                df['low_value'] = df[['open_value', 'low_value', 'last_value']].min(axis=1)
         
         # Convert date column to datetime
         df['date'] = pd.to_datetime(df['date'])
@@ -70,30 +86,54 @@ def load_credit_card_data(sample_size=50000):
             if os.path.exists(parent_path):
                 df = pd.read_csv(parent_path, nrows=sample_size)
             else:
-                # Show helpful error message
-                st.error("📁 **Data File Not Found**")
-                st.warning("""
-                The `creditcard.csv` file is not included in this repository due to GitHub's 100 MB file size limit.
-                This file is 143.84 MB and cannot be stored directly in GitHub.
+                # Generate sample fraud data for demonstration
+                st.info("📊 **Using Sample Credit Card Fraud Data**")
+                st.caption("The actual CSV file (143.84 MB) is not included in the repository. Displaying generated sample data for demonstration purposes.")
                 
-                **Options to use this app:**
+                import numpy as np
                 
-                **Option 1: Use Public Dataset**
-                Download from Kaggle: [Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
+                # Generate sample data with realistic fraud patterns
+                np.random.seed(42)
+                n_samples = min(sample_size, 10000)  # Limit for performance
                 
-                **Option 2: Cloud Storage**
-                1. Upload the CSV to Google Drive, Dropbox, or AWS S3
-                2. Get a public URL
-                3. Update this function to load from URL
+                # Generate PCA features (V1-V28)
+                pca_features = {}
+                for i in range(1, 29):
+                    pca_features[f'V{i}'] = np.random.randn(n_samples)
                 
-                **Example:**
-                ```python
-                df = pd.read_csv('https://your-storage-url/creditcard.csv', nrows=sample_size)
-                ```
+                # Generate Time (seconds elapsed)
+                time_values = np.sort(np.random.randint(0, 172800, n_samples))  # 48 hours
                 
-                See `data/README.md` for detailed instructions.
-                """)
-                return None
+                # Generate Amount with realistic distribution
+                # Most transactions are small, few are large
+                amounts = np.random.lognormal(3, 1.5, n_samples)
+                amounts = np.clip(amounts, 0, 5000)  # Cap at $5000
+                
+                # Generate Class (0 = legitimate, 1 = fraud)
+                # Create imbalanced dataset (~0.17% fraud rate)
+                fraud_rate = 0.0017
+                n_fraud = int(n_samples * fraud_rate)
+                classes = np.array([0] * (n_samples - n_fraud) + [1] * n_fraud)
+                np.random.shuffle(classes)
+                
+                # Make fraud transactions have different patterns
+                fraud_mask = classes == 1
+                
+                # Fraud transactions tend to have:
+                # - Higher amounts on average
+                amounts[fraud_mask] = amounts[fraud_mask] * 1.5
+                
+                # - Different PCA patterns (modify some V features)
+                for i in [1, 3, 4, 10, 12, 14, 17]:
+                    pca_features[f'V{i}'][fraud_mask] += np.random.randn(fraud_mask.sum()) * 2
+                
+                # Create DataFrame
+                df = pd.DataFrame({
+                    'Time': time_values,
+                    **pca_features,
+                    'Amount': amounts,
+                    'Class': classes
+                })
         
         return df
     except Exception as e:
