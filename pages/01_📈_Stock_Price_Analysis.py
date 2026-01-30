@@ -5,6 +5,8 @@ Comprehensive analysis of stock market data with interactive visualizations
 import streamlit as st
 import pandas as pd
 import altair as alt
+import numpy as np
+import plotly.graph_objects as go
 import sys
 import os
 
@@ -137,12 +139,13 @@ if df is not None:
     st.markdown("---")
     
     # Main visualizations
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📈 Price Trends", 
         "🕯️ Candlestick", 
         "📊 Volume Analysis",
         "📉 Returns & Volatility",
-        "📋 Statistics"
+        "📋 Statistics",
+        "🔮 Price Prediction"
     ])
     
     with tab1:
@@ -351,6 +354,284 @@ if df is not None:
                         'last_value', 'turnover']].tail(20),
             use_container_width=True
         )
+    
+    with tab6:
+        st.markdown("### 🔮 Stock Price Prediction")
+        
+        st.markdown("""
+        Predict future stock prices using advanced machine learning models.
+        Choose between LSTM (deep learning) and Prophet (time series forecasting).
+        """)
+        
+        # Import prediction utilities
+        from utils.stock_prediction import (train_lstm_model, train_prophet_model,
+                                           predict_lstm, calculate_metrics,
+                                           plot_predictions, plot_forecast,
+                                           plot_training_history, plot_residuals,
+                                           LSTM_AVAILABLE, PROPHET_AVAILABLE)
+        
+        # Model selection
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🤖 Prediction Model")
+        
+        model_type = st.sidebar.selectbox(
+            "Select Model",
+            ["LSTM Neural Network", "Prophet Forecasting", "Compare Both"]
+        )
+        
+        # LSTM Parameters
+        if "LSTM" in model_type:
+            st.sidebar.markdown("#### LSTM Parameters")
+            sequence_length = st.sidebar.slider("Sequence Length (days)", 10, 60, 30, 5)
+            lstm_units = st.sidebar.slider("LSTM Units", 32, 256, 50, 16)
+            num_layers = st.sidebar.slider("Number of Layers", 1, 3, 2, 1)
+            epochs = st.sidebar.slider("Training Epochs", 10, 100, 50, 10)
+            batch_size = st.sidebar.selectbox("Batch Size", [16, 32, 64, 128], index=1)
+        
+        # Prophet Parameters
+        if "Prophet" in model_type:
+            st.sidebar.markdown("#### Prophet Parameters")
+            forecast_days = st.sidebar.slider("Forecast Horizon (days)", 7, 90, 30, 7)
+            seasonality_mode = st.sidebar.selectbox("Seasonality Mode", ["additive", "multiplicative"])
+            changepoint_scale = st.sidebar.slider("Changepoint Prior Scale", 0.001, 0.5, 0.05, 0.01)
+        
+        # Train button
+        if st.sidebar.button("🚀 Train & Predict", type="primary"):
+            
+            # LSTM Model
+            if model_type in ["LSTM Neural Network", "Compare Both"]:
+                if not LSTM_AVAILABLE:
+                    st.error("❌ TensorFlow/Keras not available. Please install: `pip install tensorflow`")
+                else:
+                    with st.spinner("Training LSTM model... This may take a few minutes."):
+                        # Prepare data
+                        price_data = df_filtered['last_value']
+                        
+                        # Train model
+                        model, scaler, history, X_test, y_test = train_lstm_model(
+                            price_data,
+                            sequence_length=sequence_length,
+                            lstm_units=lstm_units,
+                            epochs=epochs,
+                            batch_size=batch_size,
+                            num_layers=num_layers
+                        )
+                        
+                        if model is not None:
+                            # Store in session state
+                            st.session_state['lstm_model'] = model
+                            st.session_state['lstm_scaler'] = scaler
+                            st.session_state['lstm_history'] = history
+                            st.session_state['lstm_X_test'] = X_test
+                            st.session_state['lstm_y_test'] = y_test
+                            st.session_state['lstm_sequence_length'] = sequence_length
+                            st.session_state['price_data'] = price_data
+                            
+                            st.success("✅ LSTM model trained successfully!")
+            
+            # Prophet Model
+            if model_type in ["Prophet Forecasting", "Compare Both"]:
+                if not PROPHET_AVAILABLE:
+                    st.error("❌ Prophet not available. Please install: `pip install prophet`")
+                else:
+                    with st.spinner("Training Prophet model..."):
+                        # Train model
+                        prophet_model, forecast = train_prophet_model(
+                            df_filtered,
+                            forecast_days=forecast_days,
+                            seasonality_mode=seasonality_mode,
+                            changepoint_prior_scale=changepoint_scale
+                        )
+                        
+                        if prophet_model is not None:
+                            # Store in session state
+                            st.session_state['prophet_model'] = prophet_model
+                            st.session_state['prophet_forecast'] = forecast
+                            st.session_state['forecast_days'] = forecast_days
+                            
+                            st.success("✅ Prophet model trained successfully!")
+        
+        # Display LSTM Results
+        if 'lstm_model' in st.session_state and model_type in ["LSTM Neural Network", "Compare Both"]:
+            st.markdown("---")
+            st.markdown("#### 🧠 LSTM Model Results")
+            
+            model = st.session_state['lstm_model']
+            scaler = st.session_state['lstm_scaler']
+            history = st.session_state['lstm_history']
+            X_test = st.session_state['lstm_X_test']
+            y_test = st.session_state['lstm_y_test']
+            sequence_length = st.session_state['lstm_sequence_length']
+            price_data = st.session_state['price_data']
+            
+            # Make predictions on test set
+            y_pred = model.predict(X_test, verbose=0)
+            
+            # Inverse transform
+            y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1)).flatten()
+            y_pred_inv = scaler.inverse_transform(y_pred).flatten()
+            
+            # Calculate metrics
+            metrics = calculate_metrics(y_test_inv, y_pred_inv)
+            
+            # Display metrics
+            col1, col2, col3 = st.columns(3)
+            col1.metric("RMSE", f"${metrics['RMSE']:.2f}")
+            col2.metric("MAE", f"${metrics['MAE']:.2f}")
+            col3.metric("MAPE", f"{metrics['MAPE']:.2f}%")
+            
+            # Visualizations
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("##### Training History")
+                history_fig = plot_training_history(history)
+                st.plotly_chart(history_fig, use_container_width=True)
+            
+            with col2:
+                st.markdown("##### Actual vs Predicted")
+                pred_fig = plot_predictions(y_test_inv, y_pred_inv, "LSTM: Actual vs Predicted")
+                st.plotly_chart(pred_fig, use_container_width=True)
+            
+            # Residuals
+            st.markdown("##### Residual Analysis")
+            residual_fig = plot_residuals(y_test_inv, y_pred_inv)
+            st.plotly_chart(residual_fig, use_container_width=True)
+            
+            # Future predictions
+            st.markdown("##### Future Price Predictions")
+            
+            pred_days = st.slider("Days to Predict", 7, 30, 14, 7, key="lstm_pred_days")
+            
+            if st.button("🔮 Generate LSTM Forecast", key="lstm_forecast_btn"):
+                # Get last sequence
+                scaled_data = scaler.transform(price_data.values.reshape(-1, 1))
+                last_sequence = scaled_data[-sequence_length:].flatten()
+                
+                # Predict
+                future_predictions = predict_lstm(model, scaler, last_sequence, pred_days)
+                
+                # Create forecast dataframe
+                last_date = df_filtered['date'].max()
+                future_dates = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=pred_days)
+                
+                forecast_df = pd.DataFrame({
+                    'date': future_dates,
+                    'predicted_price': future_predictions
+                })
+                
+                # Store in session state
+                st.session_state['lstm_forecast_df'] = forecast_df
+            
+            # Display forecast if available
+            if 'lstm_forecast_df' in st.session_state:
+                forecast_df = st.session_state['lstm_forecast_df']
+                
+                # Combine historical and forecast
+                historical_df = df_filtered[['date', 'last_value']].tail(60)
+                
+                fig = go.Figure()
+                
+                # Historical prices
+                fig.add_trace(go.Scatter(
+                    x=historical_df['date'],
+                    y=historical_df['last_value'],
+                    mode='lines',
+                    name='Historical',
+                    line=dict(color='#667eea', width=2)
+                ))
+                
+                # Forecast
+                fig.add_trace(go.Scatter(
+                    x=forecast_df['date'],
+                    y=forecast_df['predicted_price'],
+                    mode='lines+markers',
+                    name='LSTM Forecast',
+                    line=dict(color='#48bb78', width=2, dash='dash')
+                ))
+                
+                fig.update_layout(
+                    title='LSTM Stock Price Forecast',
+                    xaxis_title='Date',
+                    yaxis_title='Price ($)',
+                    width=900,
+                    height=500
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Show forecast table
+                st.markdown("##### Forecast Table")
+                st.dataframe(forecast_df.style.format({'predicted_price': '${:.2f}'}), use_container_width=True)
+        
+        # Display Prophet Results
+        if 'prophet_model' in st.session_state and model_type in ["Prophet Forecasting", "Compare Both"]:
+            st.markdown("---")
+            st.markdown("#### 📊 Prophet Model Results")
+            
+            prophet_model = st.session_state['prophet_model']
+            forecast = st.session_state['prophet_forecast']
+            forecast_days = st.session_state['forecast_days']
+            
+            # Plot forecast
+            forecast_fig = plot_forecast(df_filtered, forecast, "Prophet")
+            st.plotly_chart(forecast_fig, use_container_width=True)
+            
+            # Forecast table
+            st.markdown("##### Forecast Details")
+            future_forecast = forecast[forecast['ds'] > df_filtered['date'].max()][['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
+            future_forecast.columns = ['Date', 'Predicted Price', 'Lower Bound', 'Upper Bound']
+            
+            st.dataframe(
+                future_forecast.style.format({
+                    'Predicted Price': '${:.2f}',
+                    'Lower Bound': '${:.2f}',
+                    'Upper Bound': '${:.2f}'
+                }),
+                use_container_width=True
+            )
+            
+            # Components plot
+            st.markdown("##### Forecast Components")
+            st.markdown("Prophet decomposes the time series into trend, weekly, and yearly seasonality.")
+            
+            # Note: Prophet's plot_components requires matplotlib, so we'll show a simplified version
+            st.info("💡 Prophet model captures trend and seasonality patterns automatically.")
+        
+        # If no model trained yet
+        if 'lstm_model' not in st.session_state and 'prophet_model' not in st.session_state:
+            st.info("👆 Configure parameters in the sidebar and click 'Train & Predict' to start.")
+            
+            # Model comparison info
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                <div class="insight-box">
+                    <strong>🧠 LSTM Neural Network</strong><br>
+                    <ul>
+                        <li>Deep learning approach</li>
+                        <li>Captures complex patterns</li>
+                        <li>Requires more training time</li>
+                        <li>Good for short-term predictions</li>
+                        <li>Sensitive to hyperparameters</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown("""
+                <div class="insight-box">
+                    <strong>📊 Prophet Forecasting</strong><br>
+                    <ul>
+                        <li>Time series forecasting</li>
+                        <li>Automatic seasonality detection</li>
+                        <li>Fast training</li>
+                        <li>Good for long-term predictions</li>
+                        <li>Handles missing data well</li>
+                    </ul>
+                </div>
+                """, unsafe_allow_html=True)
 
 else:
     st.error("❌ Failed to load stock data. Please check the data file.")

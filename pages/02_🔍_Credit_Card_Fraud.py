@@ -155,12 +155,13 @@ if df is not None:
     st.markdown("---")
     
     # Main visualizations
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📊 Distribution Analysis",
         "💰 Amount Analysis",
         "⏰ Time Patterns",
         "🔗 Feature Correlation",
-        "📈 PCA Visualization"
+        "📈 PCA Visualization",
+        "🤖 ML Model"
     ])
     
     with tab1:
@@ -410,6 +411,202 @@ if df is not None:
         )
         
         st.altair_chart(corr_chart, use_container_width=True)
+    
+    with tab6:
+        st.markdown("### 🤖 Machine Learning Fraud Detection Model")
+        
+        st.markdown("""
+        Train a Random Forest classifier to detect fraudulent transactions. 
+        Adjust the parameters in the sidebar to see how they affect model performance.
+        """)
+        
+        # Import ML utilities
+        from utils.ml_models import (train_fraud_detection_model, evaluate_model,
+                                    get_feature_importance, plot_confusion_matrix,
+                                    plot_roc_curve, plot_feature_importance)
+        
+        # Sidebar parameters
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🎛️ Model Parameters")
+        
+        n_estimators = st.sidebar.slider("Number of Trees", 10, 500, 100, 10)
+        max_depth = st.sidebar.slider("Max Depth", 5, 50, 20, 5)
+        min_samples_split = st.sidebar.slider("Min Samples Split", 2, 20, 5, 1)
+        use_smote = st.sidebar.checkbox("Use SMOTE (Balance Classes)", value=True)
+        
+        # Train button
+        if st.sidebar.button("🚀 Train Model", type="primary"):
+            with st.spinner("Training model... This may take a moment."):
+                # Prepare features
+                feature_cols = [col for col in df.columns if col.startswith('V')] + ['Amount']
+                X = df[feature_cols]
+                y = df['Class']
+                
+                # Train model
+                model, scaler, X_test, y_test, training_time = train_fraud_detection_model(
+                    X, y,
+                    n_estimators=n_estimators,
+                    max_depth=max_depth,
+                    min_samples_split=min_samples_split,
+                    use_smote=use_smote
+                )
+                
+                # Store in session state
+                st.session_state['fraud_model'] = model
+                st.session_state['fraud_scaler'] = scaler
+                st.session_state['X_test'] = X_test
+                st.session_state['y_test'] = y_test
+                st.session_state['feature_cols'] = feature_cols
+                st.session_state['training_time'] = training_time
+                
+                st.success(f"✅ Model trained successfully in {training_time:.2f} seconds!")
+        
+        # Display results if model exists
+        if 'fraud_model' in st.session_state:
+            model = st.session_state['fraud_model']
+            scaler = st.session_state['fraud_scaler']
+            X_test = st.session_state['X_test']
+            y_test = st.session_state['y_test']
+            feature_cols = st.session_state['feature_cols']
+            
+            # Evaluate model
+            metrics, y_pred, y_pred_proba = evaluate_model(model, X_test, y_test)
+            
+            # Metrics Dashboard
+            st.markdown("#### 📊 Model Performance Metrics")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Accuracy", f"{metrics['accuracy']:.4f}")
+            with col2:
+                st.metric("Precision", f"{metrics['precision']:.4f}")
+            with col3:
+                st.metric("Recall", f"{metrics['recall']:.4f}")
+            with col4:
+                st.metric("F1-Score", f"{metrics['f1']:.4f}")
+            
+            st.metric("ROC-AUC Score", f"{metrics['roc_auc']:.4f}", 
+                     help="Area Under the ROC Curve - measures model's ability to distinguish between classes")
+            
+            # Visualizations
+            st.markdown("---")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### ROC Curve")
+                roc_fig = plot_roc_curve(y_test, y_pred_proba)
+                st.plotly_chart(roc_fig, use_container_width=True)
+            
+            with col2:
+                st.markdown("#### Confusion Matrix")
+                cm_fig = plot_confusion_matrix(metrics['confusion_matrix'])
+                st.plotly_chart(cm_fig, use_container_width=True)
+            
+            # Feature Importance
+            st.markdown("---")
+            st.markdown("#### 🎯 Feature Importance")
+            
+            importance_df = get_feature_importance(model, feature_cols, top_n=15)
+            importance_fig = plot_feature_importance(importance_df)
+            st.plotly_chart(importance_fig, use_container_width=True)
+            
+            st.markdown("""
+            <div class="info-box">
+                <strong>💡 Interpretation:</strong> 
+                Features with higher importance scores have more influence on the model's predictions.
+                These are the key indicators the model uses to detect fraud.
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Classification Report
+            st.markdown("---")
+            st.markdown("#### 📋 Detailed Classification Report")
+            
+            report_df = pd.DataFrame(metrics['classification_report']).transpose()
+            st.dataframe(report_df.style.format("{:.4f}"), use_container_width=True)
+            
+            # Prediction Interface
+            st.markdown("---")
+            st.markdown("#### 🔮 Test Prediction")
+            
+            st.markdown("Enter transaction details to predict fraud probability:")
+            
+            with st.expander("Enter Transaction Features"):
+                pred_cols = st.columns(3)
+                
+                # Create input fields for key features
+                transaction_input = {}
+                
+                # Amount
+                with pred_cols[0]:
+                    transaction_input['Amount'] = st.number_input("Amount ($)", 
+                                                                  min_value=0.0, 
+                                                                  max_value=10000.0, 
+                                                                  value=100.0)
+                
+                # V1-V28 features (show first few)
+                for i, col in enumerate([f'V{j}' for j in range(1, 29)]):
+                    col_idx = i % 3
+                    with pred_cols[col_idx]:
+                        transaction_input[col] = st.number_input(f"{col}", 
+                                                                 value=0.0, 
+                                                                 format="%.4f",
+                                                                 key=f"input_{col}")
+                
+                if st.button("🔍 Predict Fraud Probability"):
+                    from utils.ml_models import predict_fraud
+                    
+                    fraud_prob, prediction = predict_fraud(model, scaler, transaction_input)
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if prediction == 1:
+                            st.markdown(f"""
+                            <div class="fraud-metric">
+                                <div class="metric-label">Prediction</div>
+                                <div class="metric-value">⚠️ FRAUD</div>
+                                <div class="metric-label">Probability: {fraud_prob:.2%}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div class="legit-metric">
+                                <div class="metric-label">Prediction</div>
+                                <div class="metric-value">✅ LEGITIMATE</div>
+                                <div class="metric-label">Fraud Probability: {fraud_prob:.2%}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        # Probability gauge
+                        st.markdown(f"""
+                        **Fraud Probability:** {fraud_prob:.2%}
+                        
+                        **Confidence:** {"High" if abs(fraud_prob - 0.5) > 0.3 else "Medium" if abs(fraud_prob - 0.5) > 0.1 else "Low"}
+                        
+                        **Recommendation:** {"Block transaction and investigate" if fraud_prob > 0.7 else "Flag for review" if fraud_prob > 0.3 else "Approve transaction"}
+                        """)
+        
+        else:
+            st.info("👆 Click 'Train Model' in the sidebar to start training the fraud detection model.")
+            
+            st.markdown("""
+            <div class="info-box">
+                <strong>ℹ️ About the Model:</strong><br>
+                This Random Forest classifier uses ensemble learning to detect fraudulent transactions.
+                
+                <br><br><strong>Key Features:</strong>
+                <ul>
+                    <li><strong>SMOTE:</strong> Handles class imbalance by oversampling minority class</li>
+                    <li><strong>Random Forest:</strong> Ensemble of decision trees for robust predictions</li>
+                    <li><strong>Feature Scaling:</strong> Standardizes features for better performance</li>
+                    <li><strong>Cross-validation:</strong> Ensures model generalizes well</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Data preview
     st.markdown("---")
