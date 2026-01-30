@@ -67,16 +67,43 @@ def fetch_gold_price():
     try:
         response = requests.get("https://gold-price.vercel.app/api", timeout=10)
         response.raise_for_status()
-        return response.json()
+        return response.json(), True
     except Exception as e:
-        st.error(f"❌ Error fetching gold price: {e}")
-        return None
+        st.warning(f"⚠️ API temporarily unavailable: {str(e)[:100]}")
+        st.info("📊 Displaying sample data for demonstration purposes")
+        # Return sample data
+        return {
+            "usd": {
+                "oz": "2,171.35 (+13.27)",
+                "gr": "69.81",
+                "kg": "69,810.52"
+            },
+            "kurs_bi": {
+                "oz": "15,712.00",
+                "gr": "505.00",
+                "kg": "505,000.00"
+            },
+            "idr": {
+                "oz": "34,116,251",
+                "gr": "1,096,863 (+6,703.37)",
+                "kg": "1,096,862,947"
+            },
+            "update_gold_price": "Sample Data - API Unavailable",
+            "update_kurs_bi": "Sample Data - API Unavailable",
+            "source": "https://harga-emas.org"
+        }, False
 
 # Load data
 with st.spinner("Fetching latest gold prices..."):
-    data = fetch_gold_price()
+    data, is_live = fetch_gold_price()
 
 if data:
+    # Display live/sample indicator
+    if is_live:
+        st.success("🟢 **Live Data** - Real-time prices from API")
+    else:
+        st.info("📊 **Sample Data** - API temporarily unavailable, showing example data")
+    
     # Parse data
     usd_data = data.get('usd', {})
     kurs_bi_data = data.get('kurs_bi', {})
