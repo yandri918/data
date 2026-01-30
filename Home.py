@@ -169,7 +169,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("""
     **🔗 GitHub**  
-    [github.com/yandri918/data_analyst](https://github.com/yandri918/data_analyst)
+    [github.com/yandri918/data](https://github.com/yandri918/data)
     """)
 
 with col2:
