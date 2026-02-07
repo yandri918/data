@@ -395,7 +395,7 @@ with col1:
 with col2:
     st.markdown("""
     <div class="metric-card">
-        <p class="metric-value">3</p>
+        <p class="metric-value">4</p>
         <p class="metric-label">Featured Projects</p>
     </div>
     """, unsafe_allow_html=True)
@@ -417,7 +417,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("""
@@ -441,7 +441,9 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-with col3:
+col1, col2 = st.columns(2)
+
+with col1:
     st.markdown("""
     <div class="glass-card">
         <h3><i class="fas fa-coins" style="color: #f59e0b;"></i> Gold Price Analysis</h3>
@@ -449,6 +451,17 @@ with col3:
         mendukung keputusan investasi.</p>
         <p><strong><i class="fas fa-tools"></i> Teknologi:</strong> Python, Pandas, Time Series Analysis</p>
         <p><strong><i class="fas fa-database"></i> Dataset:</strong> Historical gold prices</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div class="glass-card">
+        <h3><i class="fas fa-vote-yea" style="color: #667eea;"></i> Survey Sampling & Election Polling</h3>
+        <p>Kalkulator profesional untuk survey sampling, termasuk sample size calculation, 
+        margin of error, confidence intervals, dan statistical significance testing untuk polling pemilu.</p>
+        <p><strong><i class="fas fa-tools"></i> Teknologi:</strong> Python, SciPy, Plotly, Statistical Inference</p>
+        <p><strong><i class="fas fa-calculator"></i> Features:</strong> Sample size, MoE, CI, significance tests</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -513,9 +526,9 @@ with st.sidebar:
     st.markdown("---")
     
     st.markdown("### <i class='fas fa-tachometer-alt'></i> Quick Stats", unsafe_allow_html=True)
-    st.metric("Total Projects", "3")
+    st.metric("Total Projects", "4")
     st.metric("Total Data Points", "285K+")
-    st.metric("Visualization Types", "15+")
+    st.metric("Visualization Types", "20+")
     
     st.markdown("---")
     
